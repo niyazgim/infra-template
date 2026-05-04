@@ -1,0 +1,14 @@
+services:
+  traefik:
+    command:
+      - "--providers.docker=true"
+      - "--api.insecure=true"
+      - "--entrypoints.web.address=:80"
+    ports:
+      - "8080:8080"
+
+  your-proj-name_auth:
+    build:
+      target: dev
+    volumes:
+      - ../../${ORG_NAME}-backend/services/auth:/app

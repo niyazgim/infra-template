@@ -1,0 +1,32 @@
+services:
+  your-proj-name_next_js_frontend:
+    container_name: your-proj-name_next_js_frontend
+    profiles: [ "prod" ]
+    build:
+      context: ../../${ORG_NAME}-frontend
+      target: prod
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.frontend.comle=PathPrefix(`/`)"
+      - "traefik.http.services.frontend.loadbalancer.server.port=3000"
+      - "traefik.http.routers.frontend.entrypoints=websecure"
+      - "traefik.http.routers.frontend.tls.certresolver=myresolver"
+      - "traefik.http.routers.frontend.comle=Host(`your-proj-name.com`)"
+
+  traefik:
+    command:
+      - "--providers.docker=true"
+      - "--entrypoints.websecure.address=:443"
+      - "--certificatesresolvers.myresolver.acme.tlschallenge=true"
+      - "--certificatesresolvers.myresolver.acme.email=your-email@your-proj-nam\
+        e.com"
+      - "--certificatesresolvers.myresolver.acme.storage=/letsencrypt/acme.json"
+    ports:
+      - "443:443"
+    volumes:
+      - "./letsencrypt:/letsencrypt"
+
+  your-proj-name_auth:
+    labels:
+      - "traefik.http.routers.auth.entrypoints=websecure"
+      - "traefik.http.routers.auth.tls.certresolver=myresolver"

@@ -1,0 +1,79 @@
+services:
+  traefik:
+    image: traefik:latest
+    container_name: your-proj-name_traefik
+    command:
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
+    ports:
+      - "80:80"
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+
+  #
+  # Auth microservice
+  #
+  your-proj-name_auth_db:
+    image: postgres:16
+    container_name: your-proj-name_auth_db
+    environment:
+      POSTGRES_USER: ${AUTH_DB_USER}
+      POSTGRES_PASSWORD: "${AUTH_DB_PASSWORD}"
+      POSTGRES_DB: "${AUTH_DB_NAME}"
+    ports:
+      - "${AUTH_DB_PORT}:${AUTH_DB_PORT}"
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${AUTH_DB_USER} -d ${AUTH_DB_NAME}" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - db_data:/var/lib/postgresql/data/
+
+  your-proj-name_auth_migrations:
+    image: golang:1.25
+    container_name: your-proj-name_auth_migrations
+    volumes:
+      - ../../${ORG_NAME}-backend/services/auth/db/migrations:/db/migrations
+    working_dir: /db/migrations
+    depends_on:
+      your-proj-name_auth_db:
+        condition: service_healthy
+    environment:
+      DB_DSN: "${AUTH_DB_DSN}"
+    labels:
+      - "traefik.enable=false"
+    command: >
+      sh -c "go install github.com/pressly/goose/v3/cmd/goose@latest && goose
+      -dir /db/migrations postgres \"$$DB_DSN\" up"
+
+  your-proj-name_auth:
+    container_name: your-proj-name_auth
+    build:
+      context: ../../${ORG_NAME}-backend/services/auth
+      target: prod
+    working_dir: /app
+    depends_on:
+      your-proj-name_auth_db:
+        condition: service_healthy
+      your-proj-name_auth_migrations:
+        condition: service_started
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.auth.comle=PathPrefix(`/api/auth`)"
+      - "traefik.http.services.auth.loadbalancer.server.port=${DEFAULT_PORT}"
+    environment:
+      GIN_MODE: "${GIN_MODE}"
+      DB_DRIVER: "${AUTH_DB_DRIVER}"
+      DB_HOST: "${AUTH_DB_HOST}"
+      DB_PORT: ${AUTH_DB_PORT}
+      DB_NAME: "${AUTH_DB_NAME}"
+      DB_USER: "${AUTH_DB_USER}"
+      DB_PASSWORD: "${AUTH_DB_PASSWORD}"
+      DB_SSLMODE: "${AUTH_DB_SSLMODE}"
+    ports:
+      - "${AUTH_PORT}:${DEFAULT_PORT}"
+
+volumes:
+  db_data:
