@@ -30,3 +30,5 @@ docker/.env.dev
 docker/.env.prod
 
 services/*/tmp/
+aider*
+repomix*
